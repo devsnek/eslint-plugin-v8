@@ -3,10 +3,17 @@
 const walk = require('acorn/dist/walk');
 const ruleComposer = require('eslint-rule-composer');
 const eslint = require('eslint');
-const babel = require('babel-eslint');
 const fs = require('fs');
-
 const parseMacros = require('./macros');
+
+const config = {
+  parser: undefined,
+  macroFiles: undefined,
+};
+
+module.exports = (c) => {
+  Object.assign(config, c);
+};
 
 let baseMacros;
 const getMacros = (source, key) => {
@@ -14,8 +21,8 @@ const getMacros = (source, key) => {
 
   if (baseMacros === undefined) {
     baseMacros = { defines: {}, macros: {} };
-    if (Array.isArray(module.exports.macroFiles)) {
-      for (const name of exports.macroFiles) {
+    if (Array.isArray(config.macroFiles)) {
+      for (const name of config.macroFiles) {
         const o = parseMacros(fs.readFileSync(name, 'utf8'), name);
         Object.assign(baseMacros.defines, o.defines);
         Object.assign(baseMacros.macros, o.macros);
@@ -30,6 +37,21 @@ const getMacros = (source, key) => {
   };
 };
 
+let parse;
+const getParser = () => {
+  if (parse !== undefined)
+    return parse;
+
+  if (config.parser) {
+    const p = require(config.parser);
+    parse = p.parseForESLint || p.parse;
+  } else {
+    parse = require('espree').parse;
+  }
+
+  return parse;
+};
+
 const parseForESLint = (code, options) => {
   const replacements = new Set();
 
@@ -40,9 +62,11 @@ const parseForESLint = (code, options) => {
     return `$${name}(`;
   });
 
-  const parsed = babel.parseForESLint(code, options);
 
-  walk.simple(parsed.ast, {
+  const parsed = getParser()(code, options);
+  const ast = parsed.ast || parsed;
+
+  walk.simple(ast, {
     CallExpression(node) {
       if (replacements.has(node.callee.name))
         node.callee.name = `%${node.callee.name.slice(1)}`;
@@ -55,11 +79,10 @@ const parseForESLint = (code, options) => {
     MetaProperty() { return undefined; },
   });
 
-  return parsed;
+  return { ast };
 };
 
-module.exports = {
-  macroFiles: undefined,
+Object.assign(module.exports, {
   parseForESLint,
   parse: (code, options) => parseForESLint(code, options).ast,
   rules: {
@@ -75,4 +98,4 @@ module.exports = {
         return !keys.includes(node.name);
       }),
   },
-};
+});
