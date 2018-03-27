@@ -1,0 +1,22 @@
+{
+  "name": "eslint-plugin-v8",
+  "version": "0.0.1",
+  "description": "",
+  "main": "src/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devsnek/eslint-plugin-v8.git"
+  },
+  "author": "snek <me@gus.host>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/devsnek/eslint-plugin-v8/issues"
+  },
+  "homepage": "https://github.com/devsnek/eslint-plugin-v8#readme",
+  "dependencies": {
+    "acorn": "^5.5.3",
+    "eslint": "^4.19.1",
+    "eslint-rule-composer": "^0.1.1",
+    "espree": "^3.5.4"
+  }
+}
