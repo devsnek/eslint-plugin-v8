@@ -9,6 +9,7 @@ const parseMacros = require('./macros');
 const config = {
   parser: undefined,
   macroFiles: undefined,
+  checkFilesForMacros: false,
 };
 
 module.exports = (c) => {
@@ -66,18 +67,23 @@ const parseForESLint = (code, options) => {
   const parsed = getParser()(code, options);
   const ast = parsed.ast || parsed;
 
-  walk.simple(ast, {
-    CallExpression(node) {
-      if (replacements.has(node.callee.name))
-        node.callee.name = `%${node.callee.name.slice(1)}`;
-    },
-  }, {
-    ...walk.base,
-    Import() { return undefined; },
-    ExperimentalSpreadProperty() { return undefined; },
-    BigIntLiteral() { return undefined; },
-    MetaProperty() { return undefined; },
-  });
+  // This might throw because acorn doesn't check if it actually
+  // has the property visitor function before trying to call it.
+  // Some nodes have been added from a trial-and-error approach.
+  try {
+    walk.simple(ast, {
+      CallExpression(node) {
+        if (replacements.has(node.callee.name))
+          node.callee.name = `%${node.callee.name.slice(1)}`;
+      },
+    }, {
+      ...walk.base,
+      Import() { return undefined; },
+      ExperimentalSpreadProperty() { return undefined; },
+      BigIntLiteral() { return undefined; },
+      MetaProperty() { return undefined; },
+    });
+  } catch (err) {} // eslint-disable-line no-empty
 
   return { ast };
 };
@@ -91,11 +97,32 @@ Object.assign(module.exports, {
       ({ node }, { sourceCode }) => {
         if (/^%/.test(node.name))
           return false;
-        if (!/%|macro|define/.test(sourceCode.text))
+        if (!config.checkFilesForMacros || !/%|macro|define/.test(sourceCode.text))
           return true;
         const { macros, defines } = getMacros(sourceCode.text, sourceCode);
         const keys = [...Object.keys(macros), ...Object.keys(defines)];
         return !keys.includes(node.name);
       }),
+    'no-natives-syntax': {
+      meta: {
+        docs: {
+          description: 'disallow usage of natives syntax',
+          category: 'Best Practices',
+          recommended: true,
+        },
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!/^%/.test(node.callee.name))
+              return;
+            context.report({
+              node,
+              message: `Unexpected natives syntax: ${node.callee.name}`,
+            });
+          },
+        };
+      },
+    },
   },
 });
