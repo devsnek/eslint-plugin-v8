@@ -1,9 +1,9 @@
 'use strict';
 
-const espree = require('espree');
 const walk = require('acorn/dist/walk');
 const ruleComposer = require('eslint-rule-composer');
 const eslint = require('eslint');
+const babel = require('babel-eslint');
 const fs = require('fs');
 
 const parseMacros = require('./macros');
@@ -30,34 +30,49 @@ const getMacros = (source, key) => {
   };
 };
 
-exports.parse = (code, options) => {
+const parseForESLint = (code, options) => {
   const replacements = new Set();
 
   code = getMacros(code).source;
 
-  code = code.replace(/%(.+?)\(/g, (_, name) => {
+  code = code.replace(/%([a-zA-Z_]+?)\(/g, (_, name) => {
     replacements.add(`$${name}`);
     return `$${name}(`;
   });
 
-  const ast = espree.parse(code, options);
+  const parsed = babel.parseForESLint(code, options);
 
-  walk.simple(ast, {
+  walk.simple(parsed.ast, {
     CallExpression(node) {
       if (replacements.has(node.callee.name))
         node.callee.name = `%${node.callee.name.slice(1)}`;
     },
+  }, {
+    ...walk.base,
+    Import() { return undefined; },
+    ExperimentalSpreadProperty() { return undefined; },
+    BigIntLiteral() { return undefined; },
+    MetaProperty() { return undefined; },
   });
 
-  return ast;
+  return parsed;
 };
 
-exports.rules = {
-  'no-undef': ruleComposer.filterReports(new eslint.Linter().getRules().get('no-undef'), ({ node }, metadata) => {
-    if (/^%/.test(node.name))
-      return false;
-    const { macros, defines } = getMacros(metadata.sourceCode.text, metadata.sourceCode);
-    const keys = [...Object.keys(macros), ...Object.keys(defines)];
-    return !keys.includes(node.name);
-  }),
+module.exports = {
+  macroFiles: undefined,
+  parseForESLint,
+  parse: (code, options) => parseForESLint(code, options).ast,
+  rules: {
+    'no-undef': ruleComposer.filterReports(
+      new eslint.Linter().getRules().get('no-undef'),
+      ({ node }, { sourceCode }) => {
+        if (/^%/.test(node.name))
+          return false;
+        if (!/%|macro|define/.test(sourceCode.text))
+          return true;
+        const { macros, defines } = getMacros(sourceCode.text, sourceCode);
+        const keys = [...Object.keys(macros), ...Object.keys(defines)];
+        return !keys.includes(node.name);
+      }),
+  },
 };

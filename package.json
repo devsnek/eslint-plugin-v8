@@ -15,8 +15,8 @@
   "homepage": "https://github.com/devsnek/eslint-plugin-v8#readme",
   "dependencies": {
     "acorn": "^5.5.3",
+    "babel-eslint": "^8.2.2",
     "eslint": "^4.19.1",
-    "eslint-rule-composer": "^0.1.1",
-    "espree": "^3.5.4"
+    "eslint-rule-composer": "^0.1.1"
   }
 }
