@@ -1,6 +1,6 @@
 'use strict';
 
-const walk = require('acorn/dist/walk');
+const walk = require('./walk');
 const ruleComposer = require('eslint-rule-composer');
 const eslint = require('eslint');
 const fs = require('fs');
@@ -66,24 +66,12 @@ const parseForESLint = (code, options) => {
 
   const parsed = getParser()(code, options);
   const ast = parsed.ast || parsed;
-
-  // This might throw because acorn doesn't check if it actually
-  // has the property visitor function before trying to call it.
-  // Some nodes have been added from a trial-and-error approach.
-  try {
-    walk.simple(ast, {
-      CallExpression(node) {
-        if (replacements.has(node.callee.name))
-          node.callee.name = `%${node.callee.name.slice(1)}`;
-      },
-    }, {
-      ...walk.base,
-      Import() { return undefined; },
-      ExperimentalSpreadProperty() { return undefined; },
-      BigIntLiteral() { return undefined; },
-      MetaProperty() { return undefined; },
-    });
-  } catch (err) {} // eslint-disable-line no-empty
+  walk.simple(ast, {
+    CallExpression(node) {
+      if (replacements.has(node.callee.name))
+        node.callee.name = `%${node.callee.name.slice(1)}`;
+    },
+  });
 
   return { ast };
 };
